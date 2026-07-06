@@ -47,11 +47,14 @@ unsafe extern "C" fn trampoline<F: FnMut(&mut IOChannel, Condition) -> ControlFl
     condition: GIOCondition,
     user_data: gpointer,
 ) -> gboolean {
-    // TODO: Use something like `Borrowed`.
+    // Wrap the raw pointer so the callback receives an `IOChannel`, but skip its
+    // `Drop` (which shuts the channel down) because this wrapper does not own it.
     let mut channel = IOChannel(channel);
     let condition = Condition::from_int(condition);
     let callback = &mut *(user_data as *mut F);
-    callback(&mut channel, condition).into_glib()
+    let result = callback(&mut channel, condition).into_glib();
+    std::mem::forget(channel);
+    result
 }
 
 pub struct IOChannel(*mut glib_sys::GIOChannel);
